@@ -1,309 +1,101 @@
-<!doctype html>
-<html lang="pt-br">
+<!DOCTYPE html>
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HLS (.m3u8) → MP4 (ffmpeg.wasm)</title>
-  <style>
-    :root { --bg:#0b0f14; --card:#121821; --muted:#8aa0b2; --text:#e8f0f6; --accent:#4aa3ff; }
-    html,body { height:100%; }
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Inter,Arial,sans-serif;background:linear-gradient(180deg,#0b0f14,#0a0d12);color:var(--text);}
-    .wrap{max-width:920px;margin:40px auto;padding:24px}
-    .card{background:linear-gradient(180deg,#121821,#0f141c);border:1px solid #1f2a36;border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    h1{font-weight:800;letter-spacing:.2px;margin:.2rem 0 1rem;font-size:clamp(20px,3vw,32px)}
-    p.small{color:var(--muted);margin:.5rem 0 1rem}
-    label{display:block;margin:.6rem 0 .3rem;font-weight:600}
-    input[type="text"],input[type="url"],textarea{width:100%;padding:12px 14px;border-radius:12px;background:#0b121a;border:1px solid #1a2633;color:var(--text);outline:none}
-    input[type="text"]::placeholder, input[type="url"]::placeholder{color:#7690a8}
-    .row{display:grid;grid-template-columns:1fr;gap:14px}
-    .muted{color:var(--muted)}
-    .controls{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
-    button{appearance:none;border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;background:linear-gradient(180deg,#2b6ab7,#1d55a3);color:white;box-shadow:0 8px 24px rgba(16,72,140,.35)}
-    button.secondary{background:#1a2430;color:#cfe3f7;border:1px solid #223346}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
-    .checkbox{display:flex;align-items:center;gap:8px}
-    progress{width:100%;height:16px;border:0;border-radius:8px;overflow:hidden;background:#0e151d}
-    progress::-webkit-progress-bar{background:#0e151d}
-    progress::-webkit-progress-value{background:linear-gradient(90deg,#4aa3ff,#7bc1ff)}
-    progress::-moz-progress-bar{background:linear-gradient(90deg,#4aa3ff,#7bc1ff)}
-    .log{background:#0a0f15;border:1px dashed #1b2633;border-radius:12px;padding:12px;min-height:120px;max-height:240px;overflow:auto;font-family:ui-monospace,Consolas,Monaco,monospace;font-size:12px;white-space:pre-wrap}
-    .pill{display:inline-block;background:#0e1a27;border:1px solid #223346;color:#b8cee0;padding:6px 10px;border-radius:999px;font-size:12px}
-  </style>
+  <meta charset="UTF-8">
+  <title>ComedyHub Baixar Vídeo</title>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>HLS (.m3u8) → MP4 no navegador</h1>
-      <p class="small">Cole a URL da página do meme <em>ou</em> do <code>.m3u8</code>. Este app baixa os segmentos via um proxy (CORS) e usa <strong>ffmpeg.wasm</strong> para gerar o MP4 localmente. Pode ser pesado e consumir muita RAM — prefira vídeos curtos.</p>
+  <h2>HLS (.m3u8) → MP4 no navegador</h2>
+  <p>Cole a URL da página do meme ou do .m3u8. Este app baixa os segmentos via proxy e usa ffmpeg.wasm para gerar o MP4 localmente. Pode ser pesado — prefira vídeos curtos.</p>
 
-      <label for="inputUrl">URL do meme <span class="muted">(ex.: https://thecomedyhub.com.br/meme/…)</span></label>
-      <input id="inputUrl" type="url" placeholder="Cole a URL do meme ou .m3u8 aqui">
+  <label>URL do meme:</label><br>
+  <input type="text" id="urlInput" size="80" value="https://thecomedyhub.com.br/meme/0d2eade9-f80f-443e-a819-fcc81f086f68"><br><br>
 
-      <div class="meta">
-        <span class="pill">Modo avançado (pesado)</span>
-      </div>
+  <button id="baixarBtn">Extrair e Baixar MP4</button>
+  <button id="apenasM3u8Btn">Apenas extrair .m3u8</button>
 
-      <div class="row" style="margin-top:10px">
-        <div class="checkbox">
-          <input type="checkbox" id="useProxy" checked>
-          <label for="useProxy" style="margin:0">Usar proxy CORS</label>
-        </div>
-        <input id="proxyUrl" type="url" placeholder="URL do seu proxy (ex.: https://seu-worker.workers.dev)" />
-      </div>
+  <h3>Progresso</h3>
+  <pre id="log"></pre>
 
-      <div class="controls">
-        <button id="btnGo">Extrair e Baixar MP4</button>
-        <button id="btnJustExtract" class="secondary">Apenas extrair .m3u8</button>
-      </div>
+  <!-- ffmpeg wasm corrigido -->
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.9/dist/umd/ffmpeg.min.js"></script>
 
-      <div style="margin-top:16px">
-        <label>Progresso</label>
-        <progress id="progress" max="100" value="0"></progress>
-      </div>
-
-      <div style="margin-top:12px">
-        <label>Log</label>
-        <div id="log" class="log"></div>
-      </div>
-
-      <p class="small" style="margin-top:14px">Aviso: Baixe apenas conteúdos que você tem direito. Se o HLS usar DRM (ex.: Widevine/SAMPLE-AES), isto <strong>não</strong> funcionará.</p>
-    </div>
-  </div>
-
-  <script type="module">
-    import { createFFmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.9/dist/ffmpeg.min.js';
-
-    const el = (id)=>document.getElementById(id);
-    const logEl = el('log');
-    const progressEl = el('progress');
-    const btnGo = el('btnGo');
-    const btnJustExtract = el('btnJustExtract');
-
-    const ffmpeg = createFFmpeg({
-      log: true,
-      corePath: 'https://unpkg.com/@ffmpeg/core@0.12.9/dist/ffmpeg-core.js'
-    });
-
-    function log(msg){
-      console.log(msg);
-      logEl.textContent += (msg+"\n");
-      logEl.scrollTop = logEl.scrollHeight;
+  <script>
+    const logBox = document.getElementById('log');
+    function log(msg) {
+      logBox.textContent += msg + "\n";
     }
 
-    function setBusy(b){
-      btnGo.disabled = b; btnJustExtract.disabled = b;
-      el('inputUrl').disabled = b; el('useProxy').disabled = b; el('proxyUrl').disabled = b;
+    // Proxy já fixo
+    const CORS_PROXY = "https://weathered-breeze-e67b.duduuuu863.workers.dev/";
+
+    async function extrairM3u8(urlPagina) {
+      log("Baixando HTML...");
+      const resp = await fetch(CORS_PROXY + urlPagina);
+      const html = await resp.text();
+      log("HTML recebido, procurando m3u8...");
+      const match = html.match(/https:\/\/[^"]+\.m3u8/);
+      if (!match) throw new Error("Não achei link .m3u8 na página.");
+      return match[0];
     }
 
-    function percent(p){ progressEl.value = Math.max(0, Math.min(100, p)); }
-
-    function proxied(url){
-      const use = el('useProxy').checked;
-      const base = (el('proxyUrl').value || '').trim();
-      if(!use) return url;
-      if(!base) throw new Error('Defina o URL do proxy CORS.');
-      return base.replace(/\/$/, '') + '/?url=' + encodeURIComponent(url);
-    }
-
-    async function fetchText(url){
-      const r = await fetch(proxied(url));
-      if(!r.ok) throw new Error('HTTP '+r.status+' ao buscar '+url);
-      return await r.text();
-    }
-    async function fetchBin(url){
-      const r = await fetch(proxied(url));
-      if(!r.ok) throw new Error('HTTP '+r.status+' ao baixar '+url);
-      return new Uint8Array(await r.arrayBuffer());
-    }
-
-    function extractM3U8FromHtml(html, base){
-      // Tenta tag <source> ou URLs em texto
-      const sourceMatch = html.match(/<source[^>]+src=["']([^"']+\.m3u8)["'][^>]*>/i);
-      if(sourceMatch) return new URL(sourceMatch[1], base).href;
-      const regex = /(https?:[^\s"'<>]+\.m3u8)/gi;
-      const m = regex.exec(html);
-      if(m) return new URL(m[1], base).href;
-      return null;
-    }
-
-    function parseM3U8(text, baseUrl){
-      const lines = text.split(/\r?\n/);
-      let isMaster = false;
-      let variants = []; // {uri, bandwidth}
-      let segments = []; // {uri, duration}
-      let target = 0;
-      let key = null; // {method, uri, iv}
-      let pendingInf = null;
-
-      for(let i=0;i<lines.length;i++){
-        const line = lines[i].trim();
-        if(!line) continue;
-        if(line.startsWith('#EXT-X-STREAM-INF')){
-          isMaster = true;
-          const bw = /BANDWIDTH=(\d+)/.exec(line);
-          const next = lines[i+1] && lines[i+1].trim();
-          if(next && !next.startsWith('#')){
-            variants.push({ uri: new URL(next, baseUrl).href, bandwidth: bw?parseInt(bw[1],10):0 });
-          }
-        } else if(line.startsWith('#EXT-X-TARGETDURATION')){
-          const m = /:(\d+(?:\.\d+)?)/.exec(line); if(m) target = parseFloat(m[1]);
-        } else if(line.startsWith('#EXT-X-KEY')){
-          const method = /METHOD=([^,]+)/.exec(line)?.[1];
-          const uri = /URI="([^"]+)"/.exec(line)?.[1];
-          const iv = /IV=([^,\s]+)/.exec(line)?.[1] || null;
-          key = { method, uri: uri? new URL(uri, baseUrl).href : null, iv };
-        } else if(line.startsWith('#EXTINF')){
-          const m = /:(\d+(?:\.\d+)?)/.exec(line);
-          pendingInf = m ? parseFloat(m[1]) : 0;
-        } else if(!line.startsWith('#')){
-          const uri = new URL(line, baseUrl).href;
-          if(pendingInf==null){ segments.push({ uri, duration: target||0 }); }
-          else { segments.push({ uri, duration: pendingInf }); pendingInf = null; }
-        }
+    document.getElementById('apenasM3u8Btn').onclick = async () => {
+      const urlPagina = document.getElementById('urlInput').value.trim();
+      try {
+        const m3u8 = await extrairM3u8(urlPagina);
+        log("Achei m3u8: " + m3u8);
+        alert("M3U8 extraído: " + m3u8);
+      } catch (e) {
+        log("Erro: " + e.message);
       }
-      return { isMaster, variants, segments, targetDuration: target, key };
-    }
+    };
 
-    async function pickBestVariant(masterUrl){
-      const masterText = await fetchText(masterUrl);
-      const parsed = parseM3U8(masterText, masterUrl);
-      if(!parsed.isMaster || !parsed.variants.length) return masterUrl;
-      parsed.variants.sort((a,b)=> b.bandwidth - a.bandwidth);
-      return parsed.variants[0].uri;
-    }
+    document.getElementById('baixarBtn').onclick = async () => {
+      const urlPagina = document.getElementById('urlInput').value.trim();
+      try {
+        const m3u8 = await extrairM3u8(urlPagina);
+        log("Achei m3u8: " + m3u8);
 
-    async function buildLocalPlaylist(playlistUrl){
-      const text = await fetchText(playlistUrl);
-      const parsed = parseM3U8(text, playlistUrl);
-      if(parsed.isMaster){
-        const best = await pickBestVariant(playlistUrl);
-        return buildLocalPlaylist(best);
-      }
-      if(parsed.key && parsed.key.method && parsed.key.method !== 'NONE' && parsed.key.method !== 'AES-128'){
-        throw new Error('Playlist usa DRM ou cifragem não suportada no navegador ('+parsed.key.method+').');
-      }
+        // carrega ffmpeg.wasm
+        log("Carregando ffmpeg.wasm...");
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const ffmpeg = createFFmpeg({ log: true });
+        await ffmpeg.load();
 
-      percent(5);
-      log('Baixando '+parsed.segments.length+' segmentos…');
+        log("Baixando playlist .m3u8 via proxy...");
+        const playlistResp = await fetch(CORS_PROXY + m3u8);
+        const playlist = await playlistResp.text();
 
-      // Baixa chave AES-128 se existir
-      if(parsed.key && parsed.key.method === 'AES-128' && parsed.key.uri){
-        const keyData = await fetchBin(parsed.key.uri);
-        ffmpeg.FS('writeFile','key.bin', keyData);
-      }
+        // pega segmentos .ts
+        const baseUrl = m3u8.substring(0, m3u8.lastIndexOf("/") + 1);
+        const segments = playlist.split("\n").filter(l => l && !l.startsWith("#"));
 
-      // Limita concorrência para poupar RAM
-      const limit = 6; let active = 0; let i = 0; let done = 0;
-      const errors = [];
-      const queue = [];
-
-      function runOne(idx){
-        active++;
-        const seg = parsed.segments[idx];
-        return fetchBin(seg.uri).then(data=>{
-          const name = `seg_${String(idx).padStart(6,'0')}.ts`;
-          seg.local = name;
-          ffmpeg.FS('writeFile', name, data);
-          done++; percent(5 + (done/parsed.segments.length)*75);
-        }).catch(e=>{ errors.push({idx, e}); log('Erro seg '+idx+': '+e.message); })
-        .finally(()=>{ active--; next(); });
-      }
-      function next(){
-        while(active < limit && i < parsed.segments.length){ queue.push(runOne(i++)); }
-      }
-      next();
-      await Promise.all(queue);
-      if(errors.length){ throw new Error('Falharam '+errors.length+' segmentos.'); }
-
-      // Constrói um .m3u8 local apontando para os arquivos baixados
-      const maxDur = Math.ceil(Math.max(...parsed.segments.map(s=>s.duration||0), parsed.targetDuration||0));
-      let m3u = '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:'+maxDur+'\n#EXT-X-MEDIA-SEQUENCE:0\n';
-      if(parsed.key && parsed.key.method==='AES-128'){
-        // Mantém IV caso exista
-        m3u += '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"'+(parsed.key.iv?`,IV=${parsed.key.iv}`:'')+'\n';
-      }
-      for(const s of parsed.segments){
-        m3u += `#EXTINF:${(s.duration||0).toFixed(3)},\n${s.local}\n`;
-      }
-      m3u += '#EXT-X-ENDLIST\n';
-      ffmpeg.FS('writeFile','input.m3u8', new TextEncoder().encode(m3u));
-
-      return { count: parsed.segments.length };
-    }
-
-    async function run(){
-      setBusy(true); percent(0); logEl.textContent='';
-      try{
-        const raw = el('inputUrl').value.trim();
-        if(!raw) throw new Error('Cole a URL.');
-        let url = raw;
-        // Se for página do meme, tenta extrair m3u8
-        if(!/\.m3u8($|\?)/i.test(url)){
-          log('Lendo HTML do meme…');
-          const html = await fetchText(url);
-          const found = extractM3U8FromHtml(html, url);
-          if(!found) throw new Error('Não encontrei .m3u8 na página.');
-          url = found; log('Encontrado .m3u8: '+url);
-        } else {
-          log('Usando .m3u8 fornecido.');
+        log(`Achei ${segments.length} segmentos, baixando...`);
+        for (let i = 0; i < segments.length; i++) {
+          const segUrl = CORS_PROXY + baseUrl + segments[i];
+          const data = await fetchFile(segUrl);
+          ffmpeg.FS("writeFile", `seg${i}.ts`, data);
+          log(`Baixado segmento ${i+1}/${segments.length}`);
         }
 
-        if(!ffmpeg.isLoaded()){ log('Carregando ffmpeg.wasm (pode demorar)…'); await ffmpeg.load(); }
+        log("Concatenando com ffmpeg...");
+        const concatList = segments.map((s,i)=>`file 'seg${i}.ts'`).join("\n");
+        ffmpeg.FS("writeFile","list.txt", new TextEncoder().encode(concatList));
+        await ffmpeg.run("-f","concat","-safe","0","-i","list.txt","-c","copy","output.mp4");
 
-        // Limpa FS de execuções anteriores
-        for(const name of ffmpeg.FS('readdir','/')){
-          if(name==='.'||name==='..') continue; try{ ffmpeg.FS('unlink', name);}catch{ /* ignore */ }
-        }
+        log("Gerando download...");
+        const data = ffmpeg.FS("readFile", "output.mp4");
+        const url = URL.createObjectURL(new Blob([data.buffer], { type: "video/mp4" }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "video.mp4";
+        a.click();
 
-        // Constrói playlist local e baixa segmentos
-        const { count } = await buildLocalPlaylist(url);
-
-        log('Convertendo para MP4 (remux)…'); percent(84);
-        try{
-          await ffmpeg.run('-i','input.m3u8','-c','copy','-bsf:a','aac_adtstoasc','output.mp4');
-        } catch(e){
-          log('Falhou remux direto, tentando concat…');
-          // Fallback: concat demuxer
-          const files = ffmpeg.FS('readdir','/').filter(n=>n.startsWith('seg_')&&n.endsWith('.ts')).sort();
-          const concatTxt = files.map(f=>`file '${f}'`).join('\n');
-          ffmpeg.FS('writeFile','concat.txt', new TextEncoder().encode(concatTxt));
-          await ffmpeg.run('-f','concat','-safe','0','-i','concat.txt','-c','copy','-fflags','+genpts','output.mp4');
-        }
-
-        percent(98);
-        const data = ffmpeg.FS('readFile','output.mp4');
-        const blob = new Blob([data.buffer], { type:'video/mp4' });
-        const outUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = outUrl; a.download = 'video.mp4'; a.click();
-        URL.revokeObjectURL(outUrl);
-        percent(100); log('Concluído! Baixado '+count+' segmentos.');
-      } catch(e){
-        console.error(e); log('ERRO: '+(e?.message||e));
-      } finally {
-        setBusy(false);
+        log("Concluído! Arquivo pronto para download.");
+      } catch (e) {
+        log("Erro: " + e.message);
       }
-    }
-
-    async function justExtract(){
-      setBusy(true); logEl.textContent='';
-      try{
-        const raw = el('inputUrl').value.trim(); if(!raw) throw new Error('Cole a URL.');
-        let url = raw;
-        if(!/\.m3u8($|\?)/i.test(url)){
-          const html = await fetchText(url);
-          const found = extractM3U8FromHtml(html, url);
-          if(!found) throw new Error('Não encontrei .m3u8 na página.');
-          url = found;
-        }
-        log('Link .m3u8: '+url);
-      } catch(e){ log('ERRO: '+(e?.message||e)); }
-      finally{ setBusy(false); }
-    }
-
-    btnGo.addEventListener('click', run);
-    btnJustExtract.addEventListener('click', justExtract);
+    };
   </script>
 </body>
 </html>
