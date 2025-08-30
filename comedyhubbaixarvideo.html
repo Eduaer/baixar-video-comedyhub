@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>ComedyHub Downloader</title>
+  <!-- Import correto -->
   <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
 </head>
 <body style="font-family: Arial; text-align: center; margin-top: 50px;">
@@ -25,6 +26,10 @@
       // extrair ID
       const id = input.split("/meme/")[1];
       const m3u8Url = `https://comedyhub.b-cdn.net/memes/${id}/${id}.m3u8`;
+
+      // se precisar de proxy por causa de CORS, descomente esta linha:
+      // const m3u8Url = "https://weathered-breeze-e67b.duduuuu863.workers.dev/?url=" + encodeURIComponent(m3u8Url);
+
       status.innerText = "🔄 Baixando e convertendo... aguarde";
 
       // carregar ffmpeg.wasm
