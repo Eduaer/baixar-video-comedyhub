@@ -28,8 +28,7 @@
       status.innerText = "🔄 Baixando e convertendo... aguarde";
 
       // carregar ffmpeg.wasm
-      const { createFFmpeg, fetchFile } = FFmpeg;
-      const ffmpeg = createFFmpeg({ log: true });
+      const ffmpeg = FFmpeg.createFFmpeg({ log: true });
       await ffmpeg.load();
 
       // baixa o .m3u8 remoto
