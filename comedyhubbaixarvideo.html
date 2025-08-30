@@ -2,298 +2,71 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>ComedyHub — Baixar vídeo (HLS → MP4)</title>
+  <title>Teste Extração M3U8</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- ffmpeg.wasm UMD correto -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.9/dist/umd/ffmpeg.min.js"></script>
-  <style>
-    :root { --bg:#0b0f14; --card:#121821; --muted:#8aa0b2; --text:#e8f0f6; --accent:#4aa3ff; }
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;background:#0b0f14;color:var(--text);}
-    .wrap{max-width:960px;margin:32px auto;padding:16px}
-    .card{background:#121821;border:1px solid #1f2a36;border-radius:14px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    h1{margin:.2rem 0 1rem;font-size:clamp(20px,3vw,30px)}
-    label{display:block;margin:.6rem 0 .3rem;font-weight:600}
-    input[type="url"],input[type="text"]{width:100%;padding:12px 14px;border-radius:12px;background:#0b121a;border:1px solid #1a2633;color:var(--text);outline:none}
-    .controls{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
-    button{appearance:none;border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;background:linear-gradient(180deg,#2b6ab7,#1d55a3);color:white;box-shadow:0 8px 24px rgba(16,72,140,.35)}
-    button.secondary{background:#1a2430;color:#cfe3f7;border:1px solid #223346}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    progress{width:100%;height:16px;border:0;border-radius:8px;overflow:hidden;background:#0e151d;margin-top:10px}
-    progress::-webkit-progress-bar{background:#0e151d}
-    progress::-webkit-progress-value{background:linear-gradient(90deg,#4aa3ff,#7bc1ff)}
-    #log{background:#0a0f15;border:1px dashed #1b2633;border-radius:12px;padding:12px;min-height:160px;max-height:320px;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;margin-top:10px}
-    .note{color:var(--muted);font-size:14px;margin-top:10px}
-  </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>HLS (.m3u8) → MP4 no navegador</h1>
-      <p class="note">Cole a URL do meme do ComedyHub <em>ou</em> um link direto .m3u8. O app usa um proxy CORS e ffmpeg.wasm (pesado). Prefira vídeos curtos.</p>
-
-      <label for="inputUrl">URL do meme (.br/meme/…)</label>
-      <input id="inputUrl" type="url" placeholder="https://thecomedyhub.com.br/meme/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
-
-      <div class="controls">
-        <button id="btnGo">Extrair e Baixar MP4</button>
-        <button id="btnJustExtract" class="secondary">Apenas extrair .m3u8</button>
-      </div>
-
-      <progress id="progress" max="100" value="0"></progress>
-      <div id="log"></div>
-      <p class="note">Aviso: Se a playlist usar DRM (Widevine/SAMPLE-AES) não funcionará. AES-128 simples pode funcionar.</p>
-    </div>
-  </div>
+  <input id="inputUrl" type="url" placeholder="https://thecomedyhub.com.br/meme/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+  <button id="btnTest">Testar Extração</button>
+  <pre id="log"></pre>
 
   <script>
-  // === Config ===
   const WORKER = "https://weathered-breeze-e67b.duduuuu863.workers.dev/";
-  const CONCURRENCY = 6; // nº máximo de downloads simultâneos
 
-  // === UI helpers ===
   const $ = (id)=>document.getElementById(id);
-  const logEl = $("log"), progEl = $("progress"), inUrl = $("inputUrl"), btnGo = $("btnGo"), btnJust = $("btnJustExtract");
-  function log(s){ logEl.textContent += s + "\n"; logEl.scrollTop = logEl.scrollHeight; }
-  function setBusy(b){ btnGo.disabled=b; btnJust.disabled=b; inUrl.disabled=b; }
-  function percent(p){ progEl.value = Math.max(0, Math.min(100, p)); }
+  const logEl = $("log"), inUrl = $("inputUrl"), btnTest = $("btnTest");
+  function log(s){ logEl.textContent += s + "\n"; }
+  function setBusy(b){ btnTest.disabled=b; inUrl.disabled=b; }
 
-  // === Network via proxy ===
   async function fetchText(url){
     const r = await fetch(WORKER + "?url=" + encodeURIComponent(url));
     if(!r.ok) throw new Error("HTTP "+r.status+" ao buscar "+url);
     return await r.text();
   }
-  async function fetchBin(url){
-    const r = await fetch(WORKER + "?url=" + encodeURIComponent(url));
-    if(!r.ok) throw new Error("HTTP "+r.status+" ao baixar "+url);
-    return new Uint8Array(await r.arrayBuffer());
-  }
 
-  // === Extração robusta do .m3u8 ===
   function extractM3U8(html, base){
-    // 1) DOM parsing
+    const cands = new Set();
     try{
       const doc = new DOMParser().parseFromString(html, "text/html");
-      const cands = new Set();
       doc.querySelectorAll("[src],[href]").forEach(el=>{
         const v = el.getAttribute("src") || el.getAttribute("href");
         if(v && /\.m3u8(\?|#|$)/i.test(v)){
           cands.add(new URL(v, base).href);
         }
       });
-      // 2) Regex em todo o HTML (inclui templates/shadow DOM serializado)
-      const m = html.match(/https?:\/\/[^\s"'<>]+\.m3u8(?:\?[^\s"'<>]*)?/ig);
-      if(m) m.forEach(u=>cands.add(new URL(u, base).href));
-      // Prioriza domínio do CDN do ComedyHub
-      const arr = Array.from(cands);
-      arr.sort((a,b)=>{
-        const ad = /comedyhub\.b-cdn\.net/.test(a) ? 0 : 1;
-        const bd = /comedyhub\.b-cdn\.net/.test(b) ? 0 : 1;
-        return ad - bd || a.length - b.length;
-      });
-      if(arr.length) return arr[0];
-    }catch(e){ /* continua para fallback */ }
+    }catch(e){}
+    const m = html.match(/https?:\/\/[^\s"'<>]+\.m3u8(?:\?[^\s"'<>]*)?/ig);
+    if(m) m.forEach(u=>cands.add(new URL(u, base).href));
+    const arr = Array.from(cands);
+    arr.sort((a,b)=>{
+      const ad = /comedyhub\.b-cdn\.net/.test(a) ? 0 : 1;
+      const bd = /comedyhub\.b-cdn\.net/.test(b) ? 0 : 1;
+      return ad - bd || a.length - b.length;
+    });
+    if(arr.length) return arr[0];
     return null;
   }
 
-  // === Parser simplificado de M3U8 ===
-  function parseM3U8(text, baseUrl){
-    const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-    const isMaster = lines.some(l=>l.startsWith("#EXT-X-STREAM-INF"));
-    if(isMaster){
-      const variants = [];
-      for(let i=0;i<lines.length;i++){
-        const l=lines[i];
-        if(l.startsWith("#EXT-X-STREAM-INF")){
-          const bw = /BANDWIDTH=(\d+)/.exec(l)?.[1] ? parseInt(/BANDWIDTH=(\d+)/.exec(l)[1],10) : 0;
-          const next = lines[i+1] && !lines[i+1].startsWith("#") ? new URL(lines[i+1], baseUrl).href : null;
-          if(next) variants.push({uri: next, bandwidth: bw});
-        }
-      }
-      variants.sort((a,b)=>b.bandwidth - a.bandwidth);
-      return { isMaster:true, variants };
-    } else {
-      const segments = [];
-      let target = 0, key = null, pendingInf = null;
-      for(let i=0;i<lines.length;i++){
-        const l = lines[i];
-        if(l.startsWith("#EXT-X-TARGETDURATION")){
-          const m = /:(\d+(?:\.\d+)?)/.exec(l); if(m) target = parseFloat(m[1]);
-        } else if(l.startsWith("#EXT-X-KEY")){
-          const method = /METHOD=([^,]+)/.exec(l)?.[1];
-          const uri = /URI="([^"]+)"/.exec(l)?.[1];
-          const iv = /IV=([^,\s]+)/.exec(l)?.[1] || null;
-          key = { method, uri: uri? new URL(uri, baseUrl).href : null, iv };
-        } else if(l.startsWith("#EXTINF")){
-          pendingInf = parseFloat(l.split(":")[1]) || 0;
-        } else if(!l.startsWith("#")){
-          segments.push({ uri: new URL(l, baseUrl).href, duration: pendingInf ?? target }); pendingInf = null;
-        }
-      }
-      return { isMaster:false, segments, targetDuration:target, key };
-    }
-  }
-
-  async function pickBestVariant(url){
-    const text = await fetchText(url);
-    const p = parseM3U8(text, url);
-    if(!p.isMaster || !p.variants.length) return url;
-    return p.variants[0].uri;
-  }
-
-  // === Pipeline principal ===
-  async function justExtract(){
-    setBusy(true); percent(0); logEl.textContent="";
+  async function testExtract(){
+    setBusy(true); logEl.textContent="";
     try{
       let url = inUrl.value.trim();
-      if(!url) throw new Error("Cole a URL do meme ou de um .m3u8.");
+      if(!url) throw new Error("Cole a URL.");
       if(!/\.m3u8(\?|#|$)/i.test(url)){
-        log("Baixando HTML da página do meme…");
+        log("Baixando HTML…");
         const html = await fetchText(url);
+        log("HTML baixado:\n" + html);  // Mostra HTML completo para depuração
         const m3u8 = extractM3U8(html, url);
         if(!m3u8) throw new Error("Não encontrei .m3u8 no HTML.");
-        url = m3u8;
+        log("Extraído: " + m3u8);
+      } else {
+        log("É .m3u8 direto: " + url);
       }
-      log("Link .m3u8: "+url);
-      alert("M3U8 extraído:\n"+url);
     }catch(e){ log("ERRO: "+(e?.message||e)); }
     finally{ setBusy(false); }
   }
 
-  async function run(){
-    setBusy(true); percent(0); logEl.textContent="";
-    try{
-      let url = inUrl.value.trim();
-      if(!url) throw new Error("Cole a URL do meme ou de um .m3u8.");
-
-      // 1) Resolver m3u8 (da página ou direto)
-      if(!/\.m3u8(\?|#|$)/i.test(url)){
-        log("Baixando HTML do meme…");
-        const html = await fetchText(url);
-        const m3u8 = extractM3U8(html, url);
-        if(!m3u8) throw new Error("Não encontrei .m3u8 no HTML.");
-        url = m3u8; log("Encontrado .m3u8: "+url);
-      } else {
-        log("Usando .m3u8 fornecido.");
-      }
-
-      // 2) Master vs media playlist
-      log("Carregando playlist inicial…");
-      const firstText = await fetchText(url);
-      const first = parseM3U8(firstText, url);
-      let mediaUrl = url;
-      if(first.isMaster){
-        log("É master playlist. Selecionando variante de maior bitrate…");
-        mediaUrl = await pickBestVariant(url);
-        log("Variante escolhida: "+mediaUrl);
-      }
-
-      // 3) Carregar media playlist e listar segmentos/KEY
-      const mediaText = await fetchText(mediaUrl);
-      const media = parseM3U8(mediaText, mediaUrl);
-      if(media.isMaster) throw new Error("A variante selecionada ainda é master (inesperado).");
-
-      if(media.key && media.key.method && media.key.method!=="NONE" && media.key.method!=="AES-128"){
-        throw new Error("Playlist usa DRM/cifra não suportada ("+media.key.method+").");
-      }
-
-      // 4) Carregar ffmpeg
-      percent(5); log("Carregando ffmpeg.wasm (pode demorar no 1º uso)...");
-      const { createFFmpeg, fetchFile } = FFmpeg;
-      const ffmpeg = createFFmpeg({
-        log: true,
-        corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.9/dist/umd/ffmpeg-core.js"
-      });
-      await ffmpeg.load();
-
-      // 5) Se houver chave AES-128, salvar local
-      if(media.key && media.key.method==="AES-128" && media.key.uri){
-        log("Baixando chave AES-128…");
-        const keyData = await fetchBin(media.key.uri);
-        ffmpeg.FS("writeFile", "key.bin", keyData);
-      }
-
-      // 6) Baixar segmentos com concorrência limitada
-      log(`Baixando ${media.segments.length} segmentos…`);
-      let done = 0;
-      const limit = CONCURRENCY;
-      let idx = 0;
-      const errors = [];
-      const tasks = new Set();
-
-      function schedule(){
-        while(tasks.size < limit && idx < media.segments.length){
-          const cur = idx++;
-          const seg = media.segments[cur];
-          const p = (async ()=>{
-            try{
-              const data = await fetchBin(seg.uri);
-              const name = `seg_${String(cur).padStart(6,"0")}.ts`;
-              seg.local = name;
-              ffmpeg.FS("writeFile", name, data);
-              done++; percent(5 + (done/media.segments.length)*75);
-              if(done % 25 === 0) log(`Baixados ${done}/${media.segments.length}…`);
-            } catch(e){
-              errors.push({i:cur, err: e});
-              log("Erro no segmento "+cur+": "+(e?.message||e));
-            } finally {
-              tasks.delete(p); schedule();
-            }
-          })();
-          tasks.add(p);
-        }
-      }
-      schedule();
-      await Promise.all(Array.from(tasks));
-      if(errors.length) throw new Error("Falharam "+errors.length+" segmentos.");
-
-      // 7) Montar playlist local e remux para MP4
-      log("Preparando remux para MP4…");
-      const maxDur = Math.ceil(Math.max(...media.segments.map(s=>s.duration||0), media.targetDuration||0));
-      let localM3U = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:"+maxDur+"\n#EXT-X-MEDIA-SEQUENCE:0\n";
-      if(media.key && media.key.method==="AES-128"){
-        localM3U += '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"'+(media.key.iv?`,IV=${media.key.iv}`:"")+"\n";
-      }
-      for(const s of media.segments){
-        localM3U += `\n#EXTINF:${(s.duration||0).toFixed(3)},\n${s.local}\n`;
-      }
-      localM3U += "\n#EXT-X-ENDLIST\n";
-      ffmpeg.FS("writeFile","input.m3u8", new TextEncoder().encode(localM3U));
-
-      try{
-        log("Remux (cópia) via HLS → MP4…");
-        await ffmpeg.run(
-          "-i","input.m3u8",
-          "-c","copy",
-          "-bsf:a","aac_adtstoasc",
-          "output.mp4"
-        );
-      } catch(e){
-        log("Falhou remux direto. Tentando concat demuxer…");
-        const files = media.segments.map((_,i)=>`seg_${String(i).padStart(6,"0")}.ts`).join("\n").replace(/^/gm, "file '").replace(/$/gm,"'");
-        ffmpeg.FS("writeFile","concat.txt", new TextEncoder().encode(files));
-        await ffmpeg.run("-f","concat","-safe","0","-i","concat.txt","-c","copy","-fflags","+genpts","output.mp4");
-      }
-
-      // 8) Download
-      percent(98);
-      const out = ffmpeg.FS("readFile","output.mp4");
-      const blob = new Blob([out.buffer], { type:"video/mp4" });
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = href; a.download = "video.mp4"; a.click();
-      URL.revokeObjectURL(href);
-      percent(100); log("Concluído! MP4 baixado.");
-    } catch(e){
-      log("ERRO: "+(e?.message||e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // === Bindings ===
-  $("btnGo").addEventListener("click", run);
-  $("btnJustExtract").addEventListener("click", justExtract);
+  $("btnTest").addEventListener("click", testExtract);
   </script>
 </body>
 </html>
