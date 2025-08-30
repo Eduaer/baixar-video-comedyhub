@@ -2,100 +2,119 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>ComedyHub Baixar Vídeo</title>
+  <title>HLS (.m3u8) → MP4 no navegador</title>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+    input, button { padding: 8px; margin: 5px 0; width: 100%; }
+    #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; border-radius: 6px; height: 200px; overflow-y: auto; }
+  </style>
 </head>
 <body>
   <h2>HLS (.m3u8) → MP4 no navegador</h2>
-  <p>Cole a URL da página do meme ou do .m3u8. Este app baixa os segmentos via proxy e usa ffmpeg.wasm para gerar o MP4 localmente. Pode ser pesado — prefira vídeos curtos.</p>
+  <p>Cole a URL da página do meme ou do .m3u8. Este app baixa os segmentos via um proxy (CORS) e usa ffmpeg.wasm para gerar o MP4 localmente. Pode ser pesado e consumir muita RAM — prefira vídeos curtos.</p>
 
-  <label>URL do meme:</label><br>
-  <input type="text" id="urlInput" size="80" value="https://thecomedyhub.com.br/meme/0d2eade9-f80f-443e-a819-fcc81f086f68"><br><br>
-
-  <button id="baixarBtn">Extrair e Baixar MP4</button>
-  <button id="apenasM3u8Btn">Apenas extrair .m3u8</button>
+  <label>URL do meme (ex.: https://thecomedyhub.com.br/meme/…)</label>
+  <input id="url" placeholder="cole aqui a URL do meme ou do .m3u8">
+  
+  <button onclick="extrair()">Extrair e Baixar MP4</button>
+  <button onclick="apenasM3u8()">Apenas extrair .m3u8</button>
 
   <h3>Progresso</h3>
-  <pre id="log"></pre>
+  <div id="log"></div>
 
-  <!-- ffmpeg wasm corrigido -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.9/dist/umd/ffmpeg.min.js"></script>
+<script>
+const WORKER = "https://weathered-breeze-e67b.duduuuu863.workers.dev/";
 
-  <script>
-    const logBox = document.getElementById('log');
-    function log(msg) {
-      logBox.textContent += msg + "\n";
-    }
+function log(msg) {
+  const el = document.getElementById("log");
+  el.textContent += msg + "\n";
+  el.scrollTop = el.scrollHeight;
+}
 
-    // Proxy já fixo
-    const CORS_PROXY = "https://weathered-breeze-e67b.duduuuu863.workers.dev/";
+async function fetchPage(url) {
+  log("Baixando HTML da página...");
+  const resp = await fetch(WORKER + "?url=" + encodeURIComponent(url));
+  return await resp.text();
+}
 
-    async function extrairM3u8(urlPagina) {
-      log("Baixando HTML...");
-      const resp = await fetch(CORS_PROXY + urlPagina);
-      const html = await resp.text();
-      log("HTML recebido, procurando m3u8...");
-      const match = html.match(/https:\/\/[^"]+\.m3u8/);
-      if (!match) throw new Error("Não achei link .m3u8 na página.");
-      return match[0];
-    }
+function extrairM3u8DoHtml(html) {
+  log("Procurando .m3u8 dentro do HTML...");
+  const regex = /https?:\/\/[^\s"']+playlist\.m3u8/;
+  const match = html.match(regex);
+  if (match) {
+    log("Achei: " + match[0]);
+    return match[0];
+  }
+  throw new Error("Não achei link .m3u8 na página.");
+}
 
-    document.getElementById('apenasM3u8Btn').onclick = async () => {
-      const urlPagina = document.getElementById('urlInput').value.trim();
-      try {
-        const m3u8 = await extrairM3u8(urlPagina);
-        log("Achei m3u8: " + m3u8);
-        alert("M3U8 extraído: " + m3u8);
-      } catch (e) {
-        log("Erro: " + e.message);
-      }
-    };
+async function apenasM3u8() {
+  try {
+    const url = document.getElementById("url").value.trim();
+    if (!url) return alert("Cole uma URL");
+    const html = await fetchPage(url);
+    const m3u8 = extrairM3u8DoHtml(html);
+    log("Link final: " + m3u8);
+    alert("Link .m3u8 encontrado:\n" + m3u8);
+  } catch (e) {
+    log("Erro: " + e.message);
+  }
+}
 
-    document.getElementById('baixarBtn').onclick = async () => {
-      const urlPagina = document.getElementById('urlInput').value.trim();
-      try {
-        const m3u8 = await extrairM3u8(urlPagina);
-        log("Achei m3u8: " + m3u8);
+async function extrair() {
+  try {
+    const url = document.getElementById("url").value.trim();
+    if (!url) return alert("Cole uma URL");
+    const html = await fetchPage(url);
+    const m3u8 = extrairM3u8DoHtml(html);
+    await baixarComoMp4(m3u8);
+  } catch (e) {
+    log("Erro: " + e.message);
+  }
+}
 
-        // carrega ffmpeg.wasm
-        log("Carregando ffmpeg.wasm...");
-        const { createFFmpeg, fetchFile } = FFmpeg;
-        const ffmpeg = createFFmpeg({ log: true });
-        await ffmpeg.load();
+async function baixarComoMp4(m3u8Url) {
+  log("Carregando FFmpeg...");
+  const { createFFmpeg } = FFmpeg;
+  const ffmpeg = createFFmpeg({ log: true });
+  await ffmpeg.load();
 
-        log("Baixando playlist .m3u8 via proxy...");
-        const playlistResp = await fetch(CORS_PROXY + m3u8);
-        const playlist = await playlistResp.text();
+  log("Baixando playlist via proxy...");
+  const resp = await fetch(WORKER + "?url=" + encodeURIComponent(m3u8Url));
+  const playlist = await resp.text();
 
-        // pega segmentos .ts
-        const baseUrl = m3u8.substring(0, m3u8.lastIndexOf("/") + 1);
-        const segments = playlist.split("\n").filter(l => l && !l.startsWith("#"));
+  // Pega os segmentos .ts
+  const base = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
+  const segmentos = playlist.split("\n").filter(l => l && !l.startsWith("#"));
+  log("Achei " + segmentos.length + " segmentos");
 
-        log(`Achei ${segments.length} segmentos, baixando...`);
-        for (let i = 0; i < segments.length; i++) {
-          const segUrl = CORS_PROXY + baseUrl + segments[i];
-          const data = await fetchFile(segUrl);
-          ffmpeg.FS("writeFile", `seg${i}.ts`, data);
-          log(`Baixado segmento ${i+1}/${segments.length}`);
-        }
+  let concatList = "";
+  for (let i = 0; i < segmentos.length; i++) {
+    const segUrl = base + segmentos[i];
+    log(`Baixando segmento ${i+1}/${segmentos.length}`);
+    const segResp = await fetch(WORKER + "?url=" + encodeURIComponent(segUrl));
+    const data = new Uint8Array(await segResp.arrayBuffer());
+    const segName = `seg${i}.ts`;
+    ffmpeg.FS("writeFile", segName, data);
+    concatList += `file '${segName}'\n`;
+  }
 
-        log("Concatenando com ffmpeg...");
-        const concatList = segments.map((s,i)=>`file 'seg${i}.ts'`).join("\n");
-        ffmpeg.FS("writeFile","list.txt", new TextEncoder().encode(concatList));
-        await ffmpeg.run("-f","concat","-safe","0","-i","list.txt","-c","copy","output.mp4");
+  ffmpeg.FS("writeFile", "concat.txt", concatList);
 
-        log("Gerando download...");
-        const data = ffmpeg.FS("readFile", "output.mp4");
-        const url = URL.createObjectURL(new Blob([data.buffer], { type: "video/mp4" }));
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "video.mp4";
-        a.click();
+  log("Convertendo para MP4...");
+  await ffmpeg.run("-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "out.mp4");
 
-        log("Concluído! Arquivo pronto para download.");
-      } catch (e) {
-        log("Erro: " + e.message);
-      }
-    };
-  </script>
+  const data = ffmpeg.FS("readFile", "out.mp4");
+  const url = URL.createObjectURL(new Blob([data.buffer], { type: "video/mp4" }));
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "video.mp4";
+  a.click();
+
+  log("Download concluído!");
+}
+</script>
 </body>
 </html>
