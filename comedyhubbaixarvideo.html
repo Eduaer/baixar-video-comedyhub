@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>ComedyHub Downloader</title>
-  <!-- Import correto -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+  <!-- Import corrigido pelo unpkg -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
 </head>
 <body style="font-family: Arial; text-align: center; margin-top: 50px;">
 
@@ -23,20 +23,17 @@
         return;
       }
 
-      // extrair ID
       const id = input.split("/meme/")[1];
-      const m3u8Url = `https://comedyhub.b-cdn.net/memes/${id}/${id}.m3u8`;
+      let m3u8Url = `https://comedyhub.b-cdn.net/memes/${id}/${id}.m3u8`;
 
-      // se precisar de proxy por causa de CORS, descomente esta linha:
-      // const m3u8Url = "https://weathered-breeze-e67b.duduuuu863.workers.dev/?url=" + encodeURIComponent(m3u8Url);
+      // se precisar usar proxy (CORS), descomenta:
+      // m3u8Url = "https://weathered-breeze-e67b.duduuuu863.workers.dev/?url=" + encodeURIComponent(m3u8Url);
 
       status.innerText = "🔄 Baixando e convertendo... aguarde";
 
-      // carregar ffmpeg.wasm
       const ffmpeg = FFmpeg.createFFmpeg({ log: true });
       await ffmpeg.load();
 
-      // baixa o .m3u8 remoto
       const res = await fetch(m3u8Url);
       if (!res.ok) {
         status.innerText = "❌ Não foi possível baixar o .m3u8";
@@ -45,11 +42,9 @@
       const data = await res.arrayBuffer();
       await ffmpeg.FS("writeFile", "video.m3u8", new Uint8Array(data));
 
-      // converte para mp4
       await ffmpeg.run("-i", "video.m3u8", "-c", "copy", "saida.mp4");
       const mp4Data = ffmpeg.FS("readFile", "saida.mp4");
 
-      // cria blob para download
       const blob = new Blob([mp4Data.buffer], { type: "video/mp4" });
       const url = URL.createObjectURL(blob);
 
