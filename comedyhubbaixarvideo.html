@@ -19,7 +19,14 @@
   function setBusy(b){ btnTest.disabled=b; inUrl.disabled=b; }
 
   async function fetchText(url){
-    const r = await fetch(WORKER + "?url=" + encodeURIComponent(url));
+    const r = await fetch(WORKER + "?url=" + encodeURIComponent(url), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Referer': 'https://thecomedyhub.com.br/'
+      }
+    });
     if(!r.ok) throw new Error("HTTP "+r.status+" ao buscar "+url);
     return await r.text();
   }
@@ -37,6 +44,25 @@
     }catch(e){}
     const m = html.match(/https?:\/\/[^\s"'<>]+\.m3u8(?:\?[^\s"'<>]*)?/ig);
     if(m) m.forEach(u=>cands.add(new URL(u, base).href));
+    // Busca em scripts JSON
+    const scriptMatches = html.match(/<script[^>]*>([\s\S]*?)<\/script>/ig);
+    if(scriptMatches) {
+      scriptMatches.forEach(script => {
+        const jsonMatches = script.match(/\{.*?\.m3u8.*?\}/ig);
+        if (jsonMatches) {
+          jsonMatches.forEach(j => {
+            try {
+              const obj = JSON.parse(j);
+              Object.values(obj).forEach(val => {
+                if (typeof val === 'string' && /\.m3u8/.test(val)) {
+                  cands.add(new URL(val, base).href);
+                }
+              });
+            } catch {}
+          });
+        }
+      });
+    }
     const arr = Array.from(cands);
     arr.sort((a,b)=>{
       const ad = /comedyhub\.b-cdn\.net/.test(a) ? 0 : 1;
@@ -47,16 +73,30 @@
     return null;
   }
 
+  function constructM3U8FromURL(url) {
+    const match = url.match(/\/meme\/([a-f0-9-]+)$/i);
+    if (match) {
+      const uuid = match[1].replace(/-/g, '');
+      return `https://comedyhub.b-cdn.net/memes/${uuid}/${uuid}.m3u8`;
+    }
+    return null;
+  }
+
   async function testExtract(){
     setBusy(true); logEl.textContent="";
     try{
       let url = inUrl.value.trim();
       if(!url) throw new Error("Cole a URL.");
+      let m3u8 = constructM3U8FromURL(url);
+      if (m3u8) {
+        log("M3U8 construído a partir da URL: " + m3u8);
+        return;
+      }
       if(!/\.m3u8(\?|#|$)/i.test(url)){
         log("Baixando HTML…");
         const html = await fetchText(url);
-        log("HTML baixado:\n" + html);  // Mostra HTML completo para depuração
-        const m3u8 = extractM3U8(html, url);
+        log("HTML baixado:\n" + html.substring(0, 2000) + "...");  // Mostra parte do HTML para depuração
+        m3u8 = extractM3U8(html, url);
         if(!m3u8) throw new Error("Não encontrei .m3u8 no HTML.");
         log("Extraído: " + m3u8);
       } else {
