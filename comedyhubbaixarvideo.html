@@ -249,18 +249,36 @@
         <div id="errorMessage" class="error"></div>
 
         <div id="resultSection" class="result-section">
-            <div class="success">✅ Link convertido com sucesso!</div>
+            <div class="success">✅ Links gerados com sucesso!</div>
             
-            <div class="result-url" id="resultUrl"></div>
-            
-            <button class="btn" onclick="copyToClipboard()">
-                📋 Copiar Link
-            </button>
+            <div style="margin-bottom: 20px;">
+                <strong>🔥 e você pegou o meme da seção "MAIS RECENTES":</strong>
+                <div class="result-url" id="resultUrlAlta"></div>
+                <button class="btn" onclick="copyToClipboard('alta')">
+                    
+                    📋 Copiar Link (Mais Recentes)
+                
+                </button>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <strong>🆕 Se você pegou o meme da seção "EM ALTA":</strong>
+                <div class="result-url" id="resultUrlRecentes"></div>
+                <button class="btn" onclick="copyToClipboard('recentes')">
+                    📋 Copiar Link (Em Alta)
+                </button>
+            </div>
 
             <div class="instructions">
                 <h3>📥 Como baixar o vídeo:</h3>
                 <ol>
-                    <li>Copie o link gerado acima</li>
+                    <li><strong>Identifique de onde você pegou o meme:</strong>
+                        <ul style="margin: 10px 0; list-style-type: disc; margin-left: 20px;">
+                            <li>🔥 <strong>Em Alta:</strong> Use o primeiro link (playlist.m3u8)</li>
+                            <li>🆕 <strong>Mais Recentes:</strong> Use o segundo link (código.m3u8)</li>
+                        </ul>
+                    </li>
+                    <li>Copie o link correto usando o botão correspondente</li>
                     <li>Clique no botão abaixo para ir ao conversor</li>
                     <li>Cole o link no site do conversor</li>
                     <li>Clique em "Convert" e aguarde o processamento</li>
@@ -288,8 +306,8 @@
             const urlInput = document.getElementById('urlInput');
             const errorMessage = document.getElementById('errorMessage');
             const resultSection = document.getElementById('resultSection');
-            const resultUrl = document.getElementById('resultUrl');
-            const convertBtn = document.getElementById('convertBtn');
+            const resultUrlAlta = document.getElementById('resultUrlAlta');
+            const resultUrlRecentes = document.getElementById('resultUrlRecentes');
 
             // Limpar mensagens anteriores
             errorMessage.style.display = 'none';
@@ -303,21 +321,23 @@
                 return;
             }
 
-            // Extrair o código numérico do URL
+            // Extrair o código do URL
             const urlParts = inputUrl.split('/');
-            const numericCode = urlParts[urlParts.length - 1];
+            const code = urlParts[urlParts.length - 1];
 
             // Validar se o código extraído parece ser válido
-            if (!numericCode || numericCode.length < 10) {
+            if (!code || code.length < 10) {
                 showError('Não foi possível extrair o código do vídeo. Verifique se o link está correto.');
                 return;
             }
 
-            // Gerar o novo URL
-            const newUrl = `https://comedyhub.b-cdn.net/memes/${numericCode}/${numericCode}.m3u8`;
+            // Gerar os dois formatos de URL
+            const urlAlta = `https://comedyhub.b-cdn.net/memes/${code}/playlist.m3u8`;
+            const urlRecentes = `https://comedyhub.b-cdn.net/memes/${code}/${code}.m3u8`;
 
             // Mostrar resultado
-            resultUrl.textContent = newUrl;
+            resultUrlAlta.textContent = urlAlta;
+            resultUrlRecentes.textContent = urlRecentes;
             resultSection.classList.add('show');
 
             // Scroll suave para o resultado
@@ -330,14 +350,18 @@
             errorMessage.style.display = 'block';
         }
 
-        async function copyToClipboard() {
-            const resultUrl = document.getElementById('resultUrl');
+        async function copyToClipboard(type) {
+            const resultUrlAlta = document.getElementById('resultUrlAlta');
+            const resultUrlRecentes = document.getElementById('resultUrlRecentes');
             const copySuccess = document.getElementById('copySuccess');
+            
+            const urlToCopy = type === 'alta' ? resultUrlAlta.textContent : resultUrlRecentes.textContent;
 
             try {
-                await navigator.clipboard.writeText(resultUrl.textContent);
+                await navigator.clipboard.writeText(urlToCopy);
                 
                 // Mostrar feedback visual
+                copySuccess.textContent = `Link ${type === 'alta' ? '(Em Alta)' : '(Mais Recentes)'} copiado! ✅`;
                 copySuccess.classList.add('show');
                 
                 // Esconder feedback após 3 segundos
@@ -348,7 +372,7 @@
             } catch (err) {
                 // Fallback para navegadores que não suportam clipboard API
                 const textArea = document.createElement('textarea');
-                textArea.value = resultUrl.textContent;
+                textArea.value = urlToCopy;
                 textArea.style.position = 'fixed';
                 textArea.style.opacity = '0';
                 document.body.appendChild(textArea);
@@ -357,6 +381,7 @@
                 
                 try {
                     document.execCommand('copy');
+                    copySuccess.textContent = `Link ${type === 'alta' ? '(Em Alta)' : '(Mais Recentes)'} copiado! ✅`;
                     copySuccess.classList.add('show');
                     setTimeout(() => {
                         copySuccess.classList.remove('show');
