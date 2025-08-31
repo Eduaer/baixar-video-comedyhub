@@ -1,60 +1,383 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>ComedyHub Downloader</title>
-  <!-- Import corrigido pelo unpkg -->
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baixar Video ComedyHub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 2.5em;
+            font-weight: bold;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            text-align: left;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: white;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .result-section.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-url {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .instructions {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        .instructions h3 {
+            color: #d63384;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .instructions ol {
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        .converter-link {
+            display: inline-block;
+            background: #d63384;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .converter-link:hover {
+            background: #b02a5b;
+            transform: translateY(-1px);
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .success {
+            color: #155724;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .copy-success {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .copy-success.show {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .logo {
+                font-size: 2em;
+            }
+
+            .btn {
+                width: 100%;
+                margin: 5px 0;
+            }
+        }
+    </style>
 </head>
-<body style="font-family: Arial; text-align: center; margin-top: 50px;">
+<body>
+    <div class="container">
+        <h1 class="logo">🎭 ComedyHub</h1>
+        <p class="subtitle">Conversor de Links para Download</p>
+        
+        <form id="converterForm">
+            <div class="input-group">
+                <label for="urlInput">Cole o link do ComedyHub aqui:</label>
+                <input 
+                    type="url" 
+                    id="urlInput" 
+                    placeholder="https://thecomedyhub.com.br/meme/680a97c7d64933183d667da7"
+                    required
+                >
+            </div>
+            
+            <button type="submit" class="btn" id="convertBtn">
+                🔄 Converter Link
+            </button>
+        </form>
 
-  <h2>Baixar meme do ComedyHub</h2>
-  <input id="urlInput" type="text" size="60" placeholder="Cole aqui o link do meme">
-  <button onclick="baixar()">Gerar e Baixar</button>
+        <div id="errorMessage" class="error"></div>
 
-  <p id="status"></p>
+        <div id="resultSection" class="result-section">
+            <div class="success">✅ Link convertido com sucesso!</div>
+            
+            <div class="result-url" id="resultUrl"></div>
+            
+            <button class="btn" onclick="copyToClipboard()">
+                📋 Copiar Link
+            </button>
 
-  <script>
-    async function baixar() {
-      const input = document.getElementById("urlInput").value.trim();
-      const status = document.getElementById("status");
-      if (!input.includes("/meme/")) {
-        status.innerText = "⚠️ Link inválido!";
-        return;
-      }
+            <div class="instructions">
+                <h3>📥 Como baixar o vídeo:</h3>
+                <ol>
+                    <li>Copie o link gerado acima</li>
+                    <li>Clique no botão abaixo para ir ao conversor</li>
+                    <li>Cole o link no site do conversor</li>
+                    <li>Clique em "Convert" e aguarde o processamento</li>
+                    <li>Baixe seu vídeo em MP4!</li>
+                </ol>
+                
+                <a href="https://anyconv.com/m3u8-to-mp4-converter/" target="_blank" class="converter-link">
+                    🚀 Ir para o Conversor M3U8 → MP4
+                </a>
+            </div>
+        </div>
+    </div>
 
-      const id = input.split("/meme/")[1];
-      let m3u8Url = `https://comedyhub.b-cdn.net/memes/${id}/${id}.m3u8`;
+    <div id="copySuccess" class="copy-success">
+        Link copiado para a área de transferência! ✅
+    </div>
 
-      // se precisar usar proxy (CORS), descomenta:
-      // m3u8Url = "https://weathered-breeze-e67b.duduuuu863.workers.dev/?url=" + encodeURIComponent(m3u8Url);
+    <script>
+        document.getElementById('converterForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            convertUrl();
+        });
 
-      status.innerText = "🔄 Baixando e convertendo... aguarde";
+        function convertUrl() {
+            const urlInput = document.getElementById('urlInput');
+            const errorMessage = document.getElementById('errorMessage');
+            const resultSection = document.getElementById('resultSection');
+            const resultUrl = document.getElementById('resultUrl');
+            const convertBtn = document.getElementById('convertBtn');
 
-      const ffmpeg = FFmpeg.createFFmpeg({ log: true });
-      await ffmpeg.load();
+            // Limpar mensagens anteriores
+            errorMessage.style.display = 'none';
+            resultSection.classList.remove('show');
 
-      const res = await fetch(m3u8Url);
-      if (!res.ok) {
-        status.innerText = "❌ Não foi possível baixar o .m3u8";
-        return;
-      }
-      const data = await res.arrayBuffer();
-      await ffmpeg.FS("writeFile", "video.m3u8", new Uint8Array(data));
+            const inputUrl = urlInput.value.trim();
 
-      await ffmpeg.run("-i", "video.m3u8", "-c", "copy", "saida.mp4");
-      const mp4Data = ffmpeg.FS("readFile", "saida.mp4");
+            // Validar se o URL é do ComedyHub
+            if (!inputUrl.includes('thecomedyhub.com.br/meme/')) {
+                showError('Por favor, insira um link válido do ComedyHub (thecomedyhub.com.br/meme/...)');
+                return;
+            }
 
-      const blob = new Blob([mp4Data.buffer], { type: "video/mp4" });
-      const url = URL.createObjectURL(blob);
+            // Extrair o código numérico do URL
+            const urlParts = inputUrl.split('/');
+            const numericCode = urlParts[urlParts.length - 1];
 
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = id + ".mp4";
-      a.click();
+            // Validar se o código extraído parece ser válido
+            if (!numericCode || numericCode.length < 10) {
+                showError('Não foi possível extrair o código do vídeo. Verifique se o link está correto.');
+                return;
+            }
 
-      status.innerText = "✅ Download pronto!";
-    }
-  </script>
+            // Gerar o novo URL
+            const newUrl = `https://comedyhub.b-cdn.net/memes/${numericCode}/${numericCode}.m3u8`;
+
+            // Mostrar resultado
+            resultUrl.textContent = newUrl;
+            resultSection.classList.add('show');
+
+            // Scroll suave para o resultado
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        async function copyToClipboard() {
+            const resultUrl = document.getElementById('resultUrl');
+            const copySuccess = document.getElementById('copySuccess');
+
+            try {
+                await navigator.clipboard.writeText(resultUrl.textContent);
+                
+                // Mostrar feedback visual
+                copySuccess.classList.add('show');
+                
+                // Esconder feedback após 3 segundos
+                setTimeout(() => {
+                    copySuccess.classList.remove('show');
+                }, 3000);
+
+            } catch (err) {
+                // Fallback para navegadores que não suportam clipboard API
+                const textArea = document.createElement('textarea');
+                textArea.value = resultUrl.textContent;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    copySuccess.classList.add('show');
+                    setTimeout(() => {
+                        copySuccess.classList.remove('show');
+                    }, 3000);
+                } catch (fallbackErr) {
+                    showError('Erro ao copiar. Copie manualmente o link acima.');
+                }
+                
+                document.body.removeChild(textArea);
+            }
+        }
+
+        // Adicionar exemplo ao carregar a página
+        window.addEventListener('load', function() {
+            const urlInput = document.getElementById('urlInput');
+            urlInput.addEventListener('focus', function() {
+                if (!this.value) {
+                    this.placeholder = 'Cole aqui o link do ComedyHub...';
+                }
+            });
+        });
+    </script>
 </body>
 </html>
